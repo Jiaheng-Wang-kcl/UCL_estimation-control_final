@@ -28,3 +28,6 @@ dependencies:
 - pinocchio
 - pybullet
 - robot_descriptions
+- pytorch
+- scikit-image
+- opencv
