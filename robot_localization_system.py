@@ -22,10 +22,10 @@ class FilterConfiguration(object):
         # self.W_bearing = (np.pi * 0.5 / 180.0) ** 2
 
         # for task 3
-        self.V = np.diag([0.15, 0.15, 0.15]) ** 2  # Process noise covariance
+        self.V = np.diag([0.1, 0.1, 0.05]) ** 2  # Process noise covariance
         # Measurement noise variance (range measurements)
-        self.W_range = 0.5 ** 2
-        self.W_bearing = (np.pi * 0.5 / 180.0) ** 2
+        self.W_range = 1 ** 2
+        self.W_bearing = (np.pi * 1 / 180.0) ** 2
         
         # Initial conditions for the filter
         self.x0 = np.array([2.0, 3.0, np.pi / 4])
