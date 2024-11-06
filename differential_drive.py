@@ -65,6 +65,7 @@ def init_simulator(conf_file_name):
 def main():
     # Configuration for the simulation
     conf_file_name = "robotnik.json"  # Configuration file for the robot
+    # conf_file_name = "robotnik_noise.json"  # Configuration file for the robot
     sim,dyn_model,num_joints=init_simulator(conf_file_name)
 
     # adjusting floor friction
