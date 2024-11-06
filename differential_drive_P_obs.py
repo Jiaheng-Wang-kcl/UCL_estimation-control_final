@@ -59,9 +59,9 @@ def main():
     regulator.setCostMatrices([1, 1, 0], [0.1, 0.0005])
 
     # EKF setup
-    estimator = RobotEstimator(filter_config, map)
-    estimator.start()
-    x_est, Sigma_est = estimator.estimate()
+    # estimator = RobotEstimator(filter_config, map)
+    # estimator.start()
+    # x_est, Sigma_est = estimator.estimate()
     
     # Control and simulation variables
     u_mpc = np.zeros(num_controls)
@@ -72,7 +72,7 @@ def main():
 
     # Data recording
     true_state_all = []  # True state
-    est_state_all = []  # Estimated state
+    # est_state_all = []  # Estimated state
     obs_pos_all = []  # Observed state
 
     # Main control loop
@@ -80,22 +80,24 @@ def main():
         sim.Step(cmd, "torque")
         
         # EKF control input and prediction
-        estimator.set_control_input(u_mpc)
-        estimator.predict_to(time)
+        # estimator.set_control_input(u_mpc)
+        # estimator.predict_to(time)
         
         # Get new observations and update EKF
         obs_pos = sim.GetBasePosition()
         obs_ori = sim.GetBaseOrientation()
         obs_bearing = quaternion2bearing(obs_ori[3], obs_ori[0], obs_ori[1], obs_ori[2])
         obs_base_position = [obs_pos[0], obs_pos[1], obs_bearing]
-        y = generate_range_bearing_observations(obs_base_position)
-        estimator.update_from_range_bearing_observations(y)
+        # y = generate_range_bearing_observations(obs_base_position)
+        # estimator.update_from_range_bearing_observations(y)
 
-        x_est, Sigma_est = estimator.estimate()
+        # x_est, Sigma_est = estimator.estimate()
 
         # Compute optimal control sequence
-        x0_mpc = np.hstack((x_est[0], x_est[1], x_est[2]))
-        cur_state_x_for_linearization = [x_est[0], x_est[1], x_est[2]]
+        x0_mpc = np.hstack((obs_base_position[0], obs_base_position[1], obs_base_position[2]))
+        # x0_mpc = np.hstack((x_est[0], x_est[1], x_est[2]))
+        cur_state_x_for_linearization = [obs_base_position[0], obs_base_position[1], obs_base_position[2]]
+        # cur_state_x_for_linearization = [x_est[0], x_est[1], x_est[2]]
         cur_u_for_linearization = u_mpc
         regulator.updateSystemMatrices(sim, cur_state_x_for_linearization, cur_u_for_linearization)
 
@@ -121,7 +123,7 @@ def main():
         true_state = [true_pos[0], true_pos[1]]
 
         true_state_all.append(true_state)
-        est_state_all.append([x_est[0], x_est[1]])
+        # est_state_all.append([x_est[0], x_est[1]])
         obs_pos_all.append([obs_pos[0], obs_pos[1]])
 
         # Exit logic
@@ -138,18 +140,18 @@ def main():
 
     # Convert to arrays for plotting
     true_state_all = np.array(true_state_all)
-    est_state_all = np.array(est_state_all)
+    # est_state_all = np.array(est_state_all)
     obs_pos_all = np.array(obs_pos_all)
 
     # Plot 1: Robot true path, observed path, and estimated path
     plt.figure(figsize=(10, 6))
     plt.plot(true_state_all[:, 0], true_state_all[:, 1], label='True Path', color='blue')
-    plt.plot(est_state_all[:, 0], est_state_all[:, 1], label='Estimated Path', color='orange', alpha=0.5)
+    # plt.plot(est_state_all[:, 0], est_state_all[:, 1], label='Estimated Path', color='orange', alpha=0.5)
     plt.plot(obs_pos_all[:, 0], obs_pos_all[:, 1], label='Observed Path', color='green', alpha=0.5)
     plt.scatter(landmarks[:, 0], landmarks[:, 1], marker='x', color='red', label='Landmarks')
     plt.xlabel('X Position [m]')
     plt.ylabel('Y Position [m]')
-    plt.title('Robot True Path, Observation Path, and Estimation Path (MPCK)')
+    plt.title('Robot True Path and Observation Path (MPCT)')
     plt.legend()
     plt.grid(True)
     plt.axis('equal')
@@ -164,7 +166,7 @@ def main():
     plt.plot(grid_x, grid_y, color="gray", linestyle="--", label="Ideal Path (Grid)")
     plt.xlabel("X Position [m]")
     plt.ylabel("Y Position [m]")
-    plt.title("Ideal Path from Start to End (MPCK)")
+    plt.title("Ideal Path from Start to End (MPCT)")
     plt.legend()
     plt.grid(True)
     plt.axis("equal")
