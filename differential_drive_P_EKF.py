@@ -116,8 +116,8 @@ def main():
         # print("check y",y[:3])
         estimator.update_from_range_bearing_observations(y)
 
-        # x_est, Sigma_est = estimator.estimate()
-        x_est = base_position
+        x_est, Sigma_est = estimator.estimate()
+        # x_est = base_position
 
         # 计算最优控制序列
         x0_mpc = np.hstack((x_est[0], x_est[1], x_est[2]))
