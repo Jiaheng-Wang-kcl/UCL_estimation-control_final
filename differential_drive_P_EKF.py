@@ -107,12 +107,12 @@ def main():
         
         # 获取新的观测并更新 EKF
         # base_position = [x_est[0], x_est[1], x_est[2]]
-        true_pos = sim.GetBasePosition()
-        true_ori = sim.GetBaseOrientation()
-        true_bearing = quaternion2bearing(true_ori[3], true_ori[0], true_ori[1], true_ori[2])
-        base_position = [true_pos[0], true_pos[1], true_bearing]
-        print("check base_position",base_position)
-        y = generate_range_bearing_observations(base_position)
+        obs_pos = sim.GetBasePosition()
+        obs_ori = sim.GetBaseOrientation()
+        obs_bearing = quaternion2bearing(obs_ori[3], obs_ori[0], obs_ori[1], obs_ori[2])
+        obs_base_position = [obs_pos[0], obs_pos[1], obs_bearing]
+        print("check base_position",obs_base_position)
+        y = generate_range_bearing_observations(obs_base_position)
         # print("check y",y[:3])
         estimator.update_from_range_bearing_observations(y)
 
@@ -147,8 +147,8 @@ def main():
         # print("check time",time)
 
         # 在主循环内每步后记录真实和估计的状态
-        true_pos = sim.GetBasePosition()
-        true_ori = sim.GetBaseOrientation()
+        true_pos = sim.bot[0].base_position.copy()
+        true_ori = sim.bot[0].base_orientation.copy()
         true_bearing = quaternion2bearing(true_ori[3], true_ori[0], true_ori[1], true_ori[2])
         # true_state = [true_pos[0], true_pos[1], true_bearing]
         true_state = [true_pos[0], true_pos[1]]
