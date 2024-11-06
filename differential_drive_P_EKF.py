@@ -10,14 +10,6 @@ from robot_localization_system import FilterConfiguration, Map, RobotEstimator
 
 map = Map()
 filter_config = FilterConfiguration()
-
-# # global variables
-# W_range = 0.5 ** 2  # Measurement noise variance (range measurements)
-# landmarks = np.array([
-#     [5, 10],
-#     [15, 5],
-#     [10, 15]
-# ])
 W_range = filter_config.W_range
 landmarks = map.landmarks
 
@@ -31,16 +23,6 @@ def generate_range_bearing_observations(base_position):
         bearing_meas = wrap_angle(bearing_meas)
         observations.append([range_meas, bearing_meas])
     return np.array(observations)
-
-# Functions for EKF integration
-def landmark_range_observations(base_position):
-    y = []
-    for lm in landmarks:
-        dx = lm[0] - base_position[0]
-        dy = lm[1] - base_position[1]
-        range_meas = np.sqrt(dx**2 + dy**2)
-        y.append(range_meas)
-    return np.array(y)
 
 def quaternion2bearing(q_w, q_x, q_y, q_z):
     quat = pin.Quaternion(q_w, q_x, q_y, q_z)
@@ -88,55 +70,42 @@ def main():
     cmd = MotorCommands()
     cmd.SetControlCmd(np.zeros(4), ["velocity"] * 4)
 
-    # 记录状态数据
-    true_state_all = []  # 真实状态
-    est_state_all = []  # 估计状态
+    # Data recording
+    true_state_all = []  # True state
+    est_state_all = []  # Estimated state
+    obs_pos_all = []  # Observed state
 
     # Main control loop
     while True:
         sim.Step(cmd, "torque")
         
-        # Get estimated state from EKF
-
-        # EKF 控制输入和预测步骤
-        u_est = np.array([u_mpc[0]*0.5,u_mpc[1]]) # problem : u_est or u_mpc?
-        # print("check u_est",u_mpc[1])
-        # estimator.set_control_input(u_est)
+        # EKF control input and prediction
         estimator.set_control_input(u_mpc)
         estimator.predict_to(time)
         
-        # 获取新的观测并更新 EKF
-        # base_position = [x_est[0], x_est[1], x_est[2]]
+        # Get new observations and update EKF
         obs_pos = sim.GetBasePosition()
         obs_ori = sim.GetBaseOrientation()
         obs_bearing = quaternion2bearing(obs_ori[3], obs_ori[0], obs_ori[1], obs_ori[2])
         obs_base_position = [obs_pos[0], obs_pos[1], obs_bearing]
-        print("check base_position",obs_base_position)
         y = generate_range_bearing_observations(obs_base_position)
-        # print("check y",y[:3])
         estimator.update_from_range_bearing_observations(y)
 
         x_est, Sigma_est = estimator.estimate()
-        # x_est = base_position
 
-        # 计算最优控制序列
+        # Compute optimal control sequence
         x0_mpc = np.hstack((x_est[0], x_est[1], x_est[2]))
-
-        # 当前状态用于线性化
         cur_state_x_for_linearization = [x_est[0], x_est[1], x_est[2]]
         cur_u_for_linearization = u_mpc
-
-        # 更新系统矩阵A和B，以当前状态为线性化点
         regulator.updateSystemMatrices(sim, cur_state_x_for_linearization, cur_u_for_linearization)
 
         S_bar, T_bar, Q_bar, R_bar = regulator.propagation_model_regulator_fixed_std()
         H, F = regulator.compute_H_and_F(S_bar, T_bar, Q_bar, R_bar)
         H_inv = np.linalg.inv(H)
         u_mpc = -H_inv @ F @ x0_mpc
-        # print("check u_mpc",len(u_mpc))
         u_mpc = u_mpc[:2]
 
-        # 转换为轮子速度控制指令
+        # Convert control input to wheel velocities
         left_wheel_velocity, right_wheel_velocity = velocity_to_wheel_angular_velocity(
             u_mpc[0], u_mpc[1], wheel_base_width, wheel_radius
         )
@@ -144,38 +113,54 @@ def main():
                                                 left_wheel_velocity, right_wheel_velocity])
         cmd.SetControlCmd(angular_wheels_velocity_cmd, ["velocity"] * 4)
         time += time_step
-        # print("check time",time)
 
-        # 在主循环内每步后记录真实和估计的状态
+        # Record positions for plotting
         true_pos = sim.bot[0].base_position.copy()
         true_ori = sim.bot[0].base_orientation.copy()
         true_bearing = quaternion2bearing(true_ori[3], true_ori[0], true_ori[1], true_ori[2])
-        # true_state = [true_pos[0], true_pos[1], true_bearing]
         true_state = [true_pos[0], true_pos[1]]
 
         true_state_all.append(true_state)
-        # est_state_all.append([x_est[0], x_est[1], x_est[2]])
         est_state_all.append([x_est[0], x_est[1]])
-        # print("check x_est",x_est,"check umpc",u_mpc)
-        # 退出逻辑
+        obs_pos_all.append([obs_pos[0], obs_pos[1]])
+
+        # Exit logic
         keys = sim.GetPyBulletClient().getKeyboardEvents()
         if ord('q') in keys and keys[ord('q')] and sim.GetPyBulletClient().KEY_WAS_TRIGGERED:
             break
 
-    # 主循环退出后进行绘图
+    # Convert to arrays for plotting
     true_state_all = np.array(true_state_all)
     est_state_all = np.array(est_state_all)
+    obs_pos_all = np.array(obs_pos_all)
 
+    # Plot 1: Robot true path, observed path, and estimated path
     plt.figure(figsize=(10, 6))
-    plt.plot(true_state_all[:, 0], true_state_all[:, 1], label='true_state', color='blue')
-    plt.plot(est_state_all[:, 0], est_state_all[:, 1], label='est_state', color='orange', alpha=0.5)
-    plt.scatter(landmarks[:, 0], landmarks[:, 1], marker='x', color='red', label='地标')
-    plt.xlabel('X位置 [m]')
-    plt.ylabel('Y位置 [m]')
-    plt.title('机器人真实轨迹和估计轨迹')
+    plt.plot(true_state_all[:, 0], true_state_all[:, 1], label='True Path', color='blue')
+    plt.plot(est_state_all[:, 0], est_state_all[:, 1], label='Estimated Path', color='orange', alpha=0.5)
+    plt.plot(obs_pos_all[:, 0], obs_pos_all[:, 1], label='Observed Path', color='green', alpha=0.5)
+    plt.scatter(landmarks[:, 0], landmarks[:, 1], marker='x', color='red', label='Landmarks')
+    plt.xlabel('X Position [m]')
+    plt.ylabel('Y Position [m]')
+    plt.title('Robot True Path, Observation Path, and Estimation Path')
     plt.legend()
     plt.grid(True)
     plt.axis('equal')
+    plt.show()
+
+    # Plot 2: Ideal grid path from start to end with marked start and end points
+    plt.figure(figsize=(10, 6))
+    plt.plot(true_state_all[:, 0], true_state_all[:, 1], color='blue', label="Actual Path")
+    plt.scatter([2], [3], color="purple", s=100, marker="o", label="Start (2, 3)")
+    plt.scatter([0], [0], color="red", s=100, marker="X", label="End (0, 0)")
+    grid_x, grid_y = np.linspace(2, 0, 100), np.linspace(3, 0, 100)
+    plt.plot(grid_x, grid_y, color="gray", linestyle="--", label="Ideal Path (Grid)")
+    plt.xlabel("X Position [m]")
+    plt.ylabel("Y Position [m]")
+    plt.title("Ideal Path from Start to End")
+    plt.legend()
+    plt.grid(True)
+    plt.axis("equal")
     plt.show()
 
 if __name__ == '__main__':
